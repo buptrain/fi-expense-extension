@@ -1,0 +1,55 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Fi Expense Aggregator</title>
+  <link rel="stylesheet" href="popup.css">
+</head>
+<body>
+  <div class="container">
+    <h1>Fi Expense Aggregator</h1>
+
+    <div id="drop-zone" class="drop-zone">
+      <div class="drop-zone-icon">📄</div>
+      <p>Drop Google Fi PDF bills here</p>
+      <p class="drop-zone-hint">or click to select files</p>
+      <input type="file" id="file-input" accept=".pdf" multiple hidden>
+    </div>
+
+    <div id="bills-section" class="bills-section hidden">
+      <h2>Uploaded Bills</h2>
+      <ul id="bills-list" class="bills-list"></ul>
+    </div>
+
+    <div id="summary-section" class="summary-section hidden">
+      <h2>Expense Summary</h2>
+      <table id="summary-table" class="summary-table">
+        <thead>
+          <tr>
+            <th>Person</th>
+            <th>Total</th>
+          </tr>
+        </thead>
+        <tbody id="summary-body"></tbody>
+        <tfoot>
+          <tr class="grand-total-row">
+            <td><strong>Grand Total</strong></td>
+            <td id="grand-total"><strong>$0.00</strong></td>
+          </tr>
+        </tfoot>
+      </table>
+    </div>
+
+    <div id="loading-section" class="loading-section hidden">
+      <p>Parsing PDF...</p>
+    </div>
+
+    <div id="error-section" class="error-section hidden">
+      <p id="error-message"></p>
+    </div>
+  </div>
+
+  <script src="popup.js" type="module"></script>
+</body>
+</html>

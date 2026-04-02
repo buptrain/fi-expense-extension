@@ -1,0 +1,21 @@
+{
+  "manifest_version": 3,
+  "name": "Fi Expense Aggregator",
+  "version": "1.0.0",
+  "description": "Aggregate expenses across multiple Google Fi PDF bills and show per-person totals.",
+  "action": {
+    "default_icon": {
+      "128": "icons/icon128.png"
+    }
+  },
+  "side_panel": {
+    "default_path": "popup.html"
+  },
+  "background": {
+    "service_worker": "background.js"
+  },
+  "permissions": ["sidePanel"],
+  "icons": {
+    "128": "icons/icon128.png"
+  }
+}
