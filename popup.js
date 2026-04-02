@@ -1,4 +1,4 @@
-import { parseGoogleFiBill } from "./parser.js";
+import { parseBill } from "./parser.js";
 
 const dropZone = document.getElementById("drop-zone");
 const fileInput = document.getElementById("file-input");
@@ -12,7 +12,12 @@ const loadingSection = document.getElementById("loading-section");
 const errorSection = document.getElementById("error-section");
 const errorMessage = document.getElementById("error-message");
 
-/** @type {{id: number, fileName: string, billDate: string, total: number, members: {name: string, amount: number}[]}[]} */
+const CARRIER_ICONS = {
+  googlefi: `<svg class="carrier-icon" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg"><circle cx="12" cy="12" r="12" fill="#4285F4"/><text x="12" y="17" text-anchor="middle" font-family="Arial" font-size="14" font-weight="bold" fill="white">Fi</text></svg>`,
+  tmobile: `<svg class="carrier-icon" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg"><circle cx="12" cy="12" r="12" fill="#E20074"/><text x="12" y="17" text-anchor="middle" font-family="Arial" font-size="14" font-weight="bold" fill="white">T</text></svg>`,
+};
+
+/** @type {{id: number, carrier: string, fileName: string, billDate: string, total: number, members: {name: string, amount: number}[]}[]} */
 let bills = [];
 let nextId = 1;
 
@@ -78,7 +83,7 @@ async function handleFiles(files) {
     }
     try {
       const buffer = await file.arrayBuffer();
-      const parsed = await parseGoogleFiBill(buffer);
+      const parsed = await parseBill(buffer);
 
       // Check for duplicate (same date + same total)
       const isDup = bills.some(
@@ -91,6 +96,7 @@ async function handleFiles(files) {
 
       bills.push({
         id: nextId++,
+        carrier: parsed.carrier,
         fileName: file.name,
         billDate: parsed.billDate,
         total: parsed.total,
@@ -125,8 +131,10 @@ function render() {
   billsList.innerHTML = "";
   for (const bill of bills) {
     const li = document.createElement("li");
+    const iconSvg = CARRIER_ICONS[bill.carrier] || "";
     li.innerHTML = `
       <span class="bill-info">
+        ${iconSvg}
         <span class="bill-date">${bill.billDate}</span>
         <span>${bill.fileName}</span>
       </span>

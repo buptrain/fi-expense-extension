@@ -1,8 +1,8 @@
 {
   "manifest_version": 3,
-  "name": "Fi Expense Aggregator",
+  "name": "Bill Expense Aggregator",
   "version": "1.0.0",
-  "description": "Aggregate expenses across multiple Google Fi PDF bills and show per-person totals.",
+  "description": "Aggregate expenses across multiple carrier billing PDFs (Google Fi, T-Mobile) and show per-person totals.",
   "action": {
     "default_icon": {
       "128": "icons/icon128.png"

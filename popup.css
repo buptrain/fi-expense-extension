@@ -92,6 +92,13 @@ h2 {
   align-items: center;
 }
 
+.carrier-icon {
+  width: 18px;
+  height: 18px;
+  flex-shrink: 0;
+  vertical-align: middle;
+}
+
 .bills-list li .bill-date {
   color: #666;
   font-size: 12px;
