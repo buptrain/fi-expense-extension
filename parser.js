@@ -79,23 +79,18 @@ function parseGoogleFiBill(pages) {
 /**
  * Parse a T-Mobile bill from pre-extracted page texts.
  *
- * Page 2 contains a "THIS BILL SUMMARY" table:
- *   Totals   $xxx.xx   $xx.xx   $x.xx   $xxx.xx
- *   Account   $xxx.xx   -   $x.xx   $xxx.xx
- *   (XXX) XXX-XXXX   Voice   $x.xx   $xx.xx   -   $xx.xx
- *   (XXX) XXX-XXXX   Voice   $x.xx   $x.xx    -   $xx.xx
- *
- * "Account" charges are shared equally across all phone lines.
+ * Page 2 contains a "THIS BILL SUMMARY" table with per-line rows.
+ * Lines with "Included" under the Plans column split the Account charges.
+ * Lines with an explicit dollar amount under Plans pay their own cost.
+ * If no lines say "Included", all lines split the Account charges.
  */
 function parseTMobileBill(pages) {
-  // Bill date from page 1: "Bill issue date  Mar 23, 2026"
   const dateMatch = pages[0].match(/Bill\s+issue\s+date\s+([A-Z][a-z]{2}\s+\d{1,2},\s+\d{4})/i);
   const billDate = dateMatch ? dateMatch[1] : "Unknown date";
 
   const page2 = pages[1] || "";
 
-  // Extract total from "Totals $xxx $xxx $xxx $xxx"
-  // The last dollar amount on the Totals line is the grand total
+  // Extract grand total from "Totals ... $xxx.xx"
   const totalsMatch = page2.match(/Totals\s+([\s\S]*?)(?=Account)/);
   let total = 0;
   if (totalsMatch) {
@@ -105,9 +100,7 @@ function parseTMobileBill(pages) {
     }
   }
 
-  // Extract Account line total (shared charges)
-  // Pattern: "Account   $136.96   -   $0.00   $136.96"
-  // The last dollar amount is the Account total
+  // Extract Account total (shared charges)
   const accountMatch = page2.match(/Account\s+([\s\S]*?)(?=\(\d{3}\))/);
   let accountTotal = 0;
   if (accountMatch) {
@@ -117,36 +110,41 @@ function parseTMobileBill(pages) {
     }
   }
 
-  // Extract per-phone-number lines
-  // Pattern: "(650) 822-8082   Voice   $6.60   $17.92   -   $24.52"
-  // The last dollar amount on each line is the per-line total
+  // Extract per-phone-number lines, detecting "Included" vs explicit Plans cost
   const phoneLines = [];
   const phoneRegex = /(\(\d{3}\)\s*\d{3}-\d{4})\s+Voice\s+([\s\S]*?)(?=\(\d{3}\)\s*\d{3}-\d{4}\s+Voice|DETAILED)/g;
   let m;
   while ((m = phoneRegex.exec(page2)) !== null) {
     const phone = m[1];
     const lineText = m[2];
+    const included = /^\s*Included\b/.test(lineText);
     const amounts = [...lineText.matchAll(/-?\$\s*([\d,.]+)/g)];
-    if (amounts.length > 0) {
-      const lineTotal = parseFloat(amounts[amounts.length - 1][1].replace(",", ""));
-      phoneLines.push({ phone, lineTotal });
-    }
+    const lineTotal = amounts.length > 0
+      ? parseFloat(amounts[amounts.length - 1][1].replace(",", ""))
+      : 0;
+    phoneLines.push({ phone, lineTotal, included });
   }
 
   if (phoneLines.length === 0) {
     throw new Error("Could not find per-line charges in T-Mobile bill.");
   }
 
-  // Split account charges equally across all lines
-  const sharePerLine = accountTotal / phoneLines.length;
-  const members = phoneLines.map((line, i) => {
-    // Distribute rounding remainder to last line
-    let share;
-    if (i < phoneLines.length - 1) {
-      share = Math.floor(sharePerLine * 100) / 100;
-    } else {
-      const allocated = Math.floor(sharePerLine * 100) / 100 * (phoneLines.length - 1);
-      share = Math.round((accountTotal - allocated) * 100) / 100;
+  // Determine which lines split the Account charges
+  const includedLines = phoneLines.filter(l => l.included);
+  const splitLines = includedLines.length > 0 ? includedLines : phoneLines;
+  const sharePerLine = accountTotal / splitLines.length;
+
+  let splitIndex = 0;
+  const members = phoneLines.map((line) => {
+    let share = 0;
+    if ((includedLines.length > 0 && line.included) || includedLines.length === 0) {
+      if (splitIndex < splitLines.length - 1) {
+        share = Math.floor(sharePerLine * 100) / 100;
+      } else {
+        const allocated = Math.floor(sharePerLine * 100) / 100 * (splitLines.length - 1);
+        share = Math.round((accountTotal - allocated) * 100) / 100;
+      }
+      splitIndex++;
     }
     return {
       name: line.phone,
