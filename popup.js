@@ -16,6 +16,34 @@ const errorMessage = document.getElementById("error-message");
 let bills = [];
 let nextId = 1;
 
+/** @type {Object<string, {method: string, identifier: string}>} */
+let paymentMappings = {};
+
+/** @type {Set<string>} - lowercase name keys currently in edit mode */
+const editingRows = new Set();
+
+// --- Payment mappings persistence ---
+async function loadMappings() {
+  const result = await chrome.storage.local.get("paymentMappings");
+  paymentMappings = result.paymentMappings || {};
+}
+
+async function saveMappings() {
+  await chrome.storage.local.set({ paymentMappings });
+}
+
+function buildPaymentUrl(method, identifier, amount, billDates) {
+  const note = `Google Fi (${billDates.join(", ")})`;
+  if (method === "venmo") {
+    return `https://venmo.com/${encodeURIComponent(identifier)}?txn=charge&amount=${amount.toFixed(2)}&note=${encodeURIComponent(note)}`;
+  }
+  // paypal
+  return `https://paypal.me/${encodeURIComponent(identifier)}/${amount.toFixed(2)}`;
+}
+
+// Load mappings on init
+await loadMappings();
+
 // --- Drop zone events ---
 dropZone.addEventListener("click", () => fileInput.click());
 
@@ -84,7 +112,6 @@ function removeBill(id) {
 
 // --- Rendering ---
 function render() {
-  // Bills list
   if (bills.length === 0) {
     billsSection.classList.add("hidden");
     summarySection.classList.add("hidden");
@@ -111,7 +138,6 @@ function render() {
     billsList.appendChild(li);
   }
 
-  // Attach remove handlers
   billsList.querySelectorAll(".bill-remove").forEach((btn) => {
     btn.addEventListener("click", () => removeBill(Number(btn.dataset.id)));
   });
@@ -131,14 +157,13 @@ function render() {
     }
   }
 
-  // Build table header with per-bill columns
+  // Build table header
   const thead = summaryTable.querySelector("thead tr");
-  // Reset: Person + per-bill columns + Total
   thead.innerHTML = "<th>Person</th>";
   for (const date of billDates) {
     thead.innerHTML += `<th>${date}</th>`;
   }
-  thead.innerHTML += "<th>Total</th>";
+  thead.innerHTML += "<th>Total</th><th>Payment</th><th></th>";
 
   // Build body
   summaryBody.innerHTML = "";
@@ -146,13 +171,48 @@ function render() {
   const people = Object.values(aggregated).sort((a, b) => b.total - a.total);
 
   for (const person of people) {
+    const key = person.name.toLowerCase();
+    const mapping = paymentMappings[key];
+    const isEditing = editingRows.has(key);
     const tr = document.createElement("tr");
+
     let cells = `<td>${person.name}</td>`;
     for (const date of billDates) {
       const amt = person.perBill[date];
       cells += `<td>${amt != null ? "$" + amt.toFixed(2) : "-"}</td>`;
     }
     cells += `<td><strong>$${person.total.toFixed(2)}</strong></td>`;
+
+    // Payment cell
+    if (isEditing || !mapping) {
+      const method = mapping?.method || "venmo";
+      const identifier = mapping?.identifier || "";
+      const placeholder = method === "venmo" ? "username, phone, or email" : "PayPal.me username";
+      cells += `<td class="payment-cell">
+        <select class="payment-select" data-key="${key}">
+          <option value="venmo"${method === "venmo" ? " selected" : ""}>Venmo</option>
+          <option value="paypal"${method === "paypal" ? " selected" : ""}>PayPal</option>
+        </select>
+        <input class="payment-input" type="text" data-key="${key}"
+          value="${identifier}" placeholder="${placeholder}">
+        <button class="save-btn" data-key="${key}">Save</button>
+      </td>`;
+    } else {
+      const label = mapping.method === "venmo" ? "Venmo" : "PayPal";
+      cells += `<td class="payment-cell">
+        <span class="payment-display">${label}: ${mapping.identifier}</span>
+        <button class="edit-btn" data-key="${key}">Edit</button>
+      </td>`;
+    }
+
+    // Request button
+    const hasMapping = mapping && mapping.identifier;
+    cells += `<td>
+      <button class="request-btn" data-key="${key}" ${hasMapping ? "" : "disabled"}>
+        Request $${person.total.toFixed(2)}
+      </button>
+    </td>`;
+
     tr.innerHTML = cells;
     summaryBody.appendChild(tr);
     grandTotal += person.total;
@@ -165,7 +225,83 @@ function render() {
     const billTotal = bills.find((b) => b.billDate === date)?.total || 0;
     tfoot.innerHTML += `<td><strong>$${billTotal.toFixed(2)}</strong></td>`;
   }
-  tfoot.innerHTML += `<td><strong>$${grandTotal.toFixed(2)}</strong></td>`;
+  tfoot.innerHTML += `<td><strong>$${grandTotal.toFixed(2)}</strong></td><td></td><td></td>`;
+
+  // --- Attach event handlers ---
+
+  // Update placeholder when method select changes
+  summaryBody.querySelectorAll(".payment-select").forEach((sel) => {
+    sel.addEventListener("change", () => {
+      const input = summaryBody.querySelector(`.payment-input[data-key="${sel.dataset.key}"]`);
+      if (input) {
+        input.placeholder = sel.value === "venmo" ? "username, phone, or email" : "PayPal.me username";
+      }
+    });
+  });
+
+  // Save button
+  summaryBody.querySelectorAll(".save-btn").forEach((btn) => {
+    btn.addEventListener("click", async () => {
+      const key = btn.dataset.key;
+      const sel = summaryBody.querySelector(`.payment-select[data-key="${key}"]`);
+      const input = summaryBody.querySelector(`.payment-input[data-key="${key}"]`);
+      const method = sel.value;
+      let identifier = input.value.trim();
+      if (!identifier) return;
+
+      // Sanitize: strip leading @ (Venmo URLs don't use it)
+      identifier = identifier.replace(/^@+/, "");
+
+      // Validate based on method
+      if (method === "venmo") {
+        // Venmo usernames: 5-30 chars, alphanumeric/hyphens/underscores
+        // Also allow phone (digits, dashes, +) or email
+        const isUsername = /^[a-zA-Z0-9_-]{1,30}$/.test(identifier);
+        const isPhone = /^\+?[\d-]{7,15}$/.test(identifier);
+        const isEmail = /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(identifier);
+        if (!isUsername && !isPhone && !isEmail) {
+          input.classList.add("input-error");
+          showError("Enter a valid Venmo username, phone number, or email.");
+          return;
+        }
+      } else {
+        // PayPal.me usernames: alphanumeric only
+        if (!/^[a-zA-Z0-9]{1,20}$/.test(identifier)) {
+          input.classList.add("input-error");
+          showError("Enter a valid PayPal.me username (letters and numbers only).");
+          return;
+        }
+      }
+
+      input.classList.remove("input-error");
+      hideError();
+      paymentMappings[key] = { method, identifier };
+      await saveMappings();
+      editingRows.delete(key);
+      render();
+    });
+  });
+
+  // Edit button
+  summaryBody.querySelectorAll(".edit-btn").forEach((btn) => {
+    btn.addEventListener("click", () => {
+      editingRows.add(btn.dataset.key);
+      render();
+    });
+  });
+
+  // Request button
+  summaryBody.querySelectorAll(".request-btn").forEach((btn) => {
+    btn.addEventListener("click", () => {
+      const key = btn.dataset.key;
+      const mapping = paymentMappings[key];
+      if (!mapping) return;
+      const person = people.find((p) => p.name.toLowerCase() === key);
+      if (!person) return;
+      const url = buildPaymentUrl(mapping.method, mapping.identifier, person.total, billDates);
+      chrome.tabs.create({ url });
+    });
+  });
 }
 
 // --- Error display ---

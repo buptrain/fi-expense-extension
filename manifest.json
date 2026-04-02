@@ -14,7 +14,7 @@
   "background": {
     "service_worker": "background.js"
   },
-  "permissions": ["sidePanel"],
+  "permissions": ["sidePanel", "storage"],
   "icons": {
     "128": "icons/icon128.png"
   }

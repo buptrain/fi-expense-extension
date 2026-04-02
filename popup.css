@@ -166,6 +166,79 @@ h2 {
   padding: 10px 12px;
 }
 
+/* Payment columns */
+.payment-cell {
+  text-align: left !important;
+  white-space: nowrap;
+}
+
+.payment-select {
+  font-size: 12px;
+  padding: 3px 4px;
+  border: 1px solid #ccc;
+  border-radius: 4px;
+  margin-right: 4px;
+  vertical-align: middle;
+}
+
+.payment-input {
+  font-size: 12px;
+  padding: 3px 6px;
+  border: 1px solid #ccc;
+  border-radius: 4px;
+  width: 140px;
+  vertical-align: middle;
+}
+
+.payment-input.input-error {
+  border-color: #d93025;
+  outline-color: #d93025;
+}
+
+.payment-display {
+  font-size: 13px;
+  color: #333;
+  margin-right: 6px;
+}
+
+.save-btn,
+.edit-btn {
+  font-size: 11px;
+  padding: 3px 8px;
+  border: 1px solid #ccc;
+  border-radius: 4px;
+  background: #fff;
+  color: #1a73e8;
+  cursor: pointer;
+  vertical-align: middle;
+  margin-left: 4px;
+}
+
+.save-btn:hover,
+.edit-btn:hover {
+  background: #e8f0fe;
+}
+
+.request-btn {
+  font-size: 12px;
+  padding: 4px 10px;
+  background: #1a73e8;
+  color: #fff;
+  border: none;
+  border-radius: 4px;
+  cursor: pointer;
+  white-space: nowrap;
+}
+
+.request-btn:hover:not(:disabled) {
+  background: #1557b0;
+}
+
+.request-btn:disabled {
+  background: #ccc;
+  cursor: default;
+}
+
 /* Loading */
 .loading-section {
   margin-top: 12px;
