@@ -209,7 +209,8 @@ h2 {
 }
 
 .save-btn,
-.edit-btn {
+.edit-btn,
+.unbind-btn {
   font-size: 11px;
   padding: 3px 8px;
   border: 1px solid #ccc;
@@ -224,6 +225,15 @@ h2 {
 .save-btn:hover,
 .edit-btn:hover {
   background: #e8f0fe;
+}
+
+.unbind-btn {
+  color: #d93025;
+  border-color: #d93025;
+}
+
+.unbind-btn:hover {
+  background: #fce8e6;
 }
 
 .request-btn {

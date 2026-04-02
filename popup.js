@@ -210,6 +210,7 @@ function render() {
       cells += `<td class="payment-cell">
         <span class="payment-display">${label}: ${mapping.identifier}</span>
         <button class="edit-btn" data-key="${key}">Edit</button>
+        <button class="unbind-btn" data-key="${key}">Unbind</button>
       </td>`;
     }
 
@@ -294,6 +295,17 @@ function render() {
   summaryBody.querySelectorAll(".edit-btn").forEach((btn) => {
     btn.addEventListener("click", () => {
       editingRows.add(btn.dataset.key);
+      render();
+    });
+  });
+
+  // Unbind button
+  summaryBody.querySelectorAll(".unbind-btn").forEach((btn) => {
+    btn.addEventListener("click", async () => {
+      const key = btn.dataset.key;
+      delete paymentMappings[key];
+      await saveMappings();
+      editingRows.delete(key);
       render();
     });
   });
