@@ -1,77 +1,94 @@
 # BillSplitter
 
-A Chrome extension that parses PDF bills from multiple carriers, aggregates per-person expenses, and lets you request payments via Venmo or PayPal in one click.
+**Turn shared carrier statements into a clear, local-first settlement view.**
 
-## Supported Carriers
+BillSplitter is a Chrome side-panel extension for households that share mobile plans. Drop in supported PDF statements, review a per-person breakdown across one or more bills, and open a pre-filled Venmo or PayPal request when you are ready to settle up.
 
-| Carrier | Members Identified By | Splitting Logic |
-|---------|----------------------|-----------------|
-| **Google Fi** | Name (e.g. "Lance Lee") | Per-member totals extracted directly from bill |
-| **T-Mobile** | Phone number (e.g. "(206) 555-1234") | Shared account charges split equally among "Included" lines; lines with explicit plan costs pay their own |
+The product is intentionally small: no account, no backend, and no bill data sent to a service.
 
-The bill type is auto-detected from the PDF content — just drop any supported bill and it works.
+---
 
-## Features
+## The workflow
 
-- **Multi-carrier, multi-bill** — Upload Google Fi and T-Mobile PDF statements together in any combination
-- **Per-person breakdown** — Automatically extracts each member's charges from every bill
-- **Aggregated view** — Summary table showing per-bill and total amounts for each person
-- **One-click payment requests** — Map each person to a Venmo or PayPal.me account, then open a prefilled payment request page directly from the table. Tested with real Venmo charge URLs and PayPal.me links.
-- **Persistent contact mapping** — Payment methods are saved locally and auto-populated on next use. Edit or unbind anytime.
-- **Input validation** — Venmo handles are sanitized (leading `@` stripped) and validated against username, phone, and email formats. PayPal.me usernames are checked for alphanumeric compliance.
-- **Carrier icons** — Each bill shows a Google Fi or T-Mobile icon for quick identification
-- **Duplicate detection** — Warns if the same bill is uploaded twice
-- **Side panel UI** — Opens as a Chrome side panel for easy reference while browsing
+1. Add Google Fi or T-Mobile PDF statements.
+2. BillSplitter identifies the carrier and extracts each line's charge.
+3. Review the combined balance by person.
+4. Save a local Venmo or PayPal handle, then open a pre-filled payment request.
 
-## Security and Privacy
+The extension never initiates a payment. It opens the payment provider's page after you choose **Request**.
 
-This extension is designed with a **zero-trust, lightweight architecture**:
+## What it supports
 
-- **No backend, no server** — Everything runs 100% client-side in your browser
-- **No secrets or credentials stored** — The extension never asks for, stores, or transmits any passwords, API keys, OAuth tokens, or payment credentials
-- **No network requests** — PDF parsing and expense aggregation happen entirely offline. The only outbound navigation is when you explicitly click "Request" to open a Venmo/PayPal page in a new tab.
-- **Minimal permissions** — Only `sidePanel` (to open the UI) and `storage` (to remember your Venmo/PayPal contact mappings locally). No access to browsing history, tabs content, or web requests.
-- **Local-only storage** — Payment contact mappings (just a username per person) are saved in `chrome.storage.local`, never synced or uploaded
+| Carrier | Member identifier | Allocation approach |
+| --- | --- | --- |
+| Google Fi | Name on the statement | Reads the statement's per-member totals |
+| T-Mobile | Phone number | Assigns explicit plan costs to that line and divides shared account charges among eligible lines |
 
-## How It Works
+Bills are detected from their PDF text. Formats vary by carrier and can change, so unsupported or materially changed statements fail with an error rather than silently producing a result.
 
-The extension uses [pdf.js](https://mozilla.github.io/pdf.js/) to extract text from each PDF page, then applies carrier-specific parsing:
+## Architecture
 
-- **Google Fi** — Extracts the per-member summary table from page 2
-- **T-Mobile** — Parses the "THIS BILL SUMMARY" table on page 2. Lines marked "Included" under Plans split the shared Account charges equally. Lines with explicit dollar amounts pay their own plan cost.
-
-For payment requests, the extension generates prefilled URLs:
-- **Venmo**: `venmo.com/{handle}?txn=charge&amount={amount}&note=...`
-- **PayPal**: `paypal.me/{username}/{amount}`
-
-## Installation
-
-1. Clone this repository
-2. Open `chrome://extensions` in Chrome
-3. Enable **Developer mode** (top right toggle)
-4. Click **Load unpacked** and select the cloned folder
-
-## Usage
-
-1. Click the extension icon in Chrome — the side panel opens
-2. Drag and drop (or click to select) one or more carrier billing PDFs
-3. View the aggregated expense table showing each person's charges per bill and their total
-4. For each person, select Venmo or PayPal, enter their handle, and click **Save**
-5. Click **Request $XX.XX** to open a prefilled payment page in a new tab
-
-## File Structure
-
+```text
+PDF statement
+    ↓
+pdf.js text extraction (in the browser)
+    ↓
+carrier-specific parser ──→ normalized member charges
+    ↓
+side-panel aggregation ──→ reviewable totals + payment-request links
 ```
-fi-expense-extension/
-├── manifest.json        # Chrome MV3 extension manifest
-├── background.js        # Opens side panel on icon click
-├── popup.html           # Main UI
-├── popup.css            # Styles
-├── popup.js             # File handling, aggregation, payment mapping, rendering
-├── parser.js            # Auto-detect carrier and parse (Google Fi / T-Mobile)
-├── lib/
-│   ├── pdf.min.mjs      # pdf.js v4.0.379
-│   └── pdf.worker.min.mjs
-└── icons/
-    └── icon128.png
+
+- `parser.js` extracts PDF text with bundled `pdf.js`, detects the carrier, and normalizes the resulting charges.
+- `popup.js` handles multi-file intake, aggregation, duplicate detection, rendering, and payment-contact mapping.
+- `background.js` opens the Chrome side panel from the toolbar action.
+- `chrome.storage.local` holds only the payment method and handle you choose to save for a person.
+
+## Privacy and permissions
+
+BillSplitter is designed to keep the statement-processing path on the device.
+
+- **No backend or account.** PDF parsing and aggregation run in the browser.
+- **No network requests for bill processing.** A provider page opens only after an explicit payment-request action.
+- **Minimal extension permissions.** `sidePanel` shows the interface; `storage` retains the local contact mapping.
+- **No payment credentials.** The extension does not request, store, or transmit passwords, tokens, or payment information.
+
+## Install locally
+
+This repository has no build step.
+
+1. Clone or download this repository.
+2. In Chrome, open `chrome://extensions`.
+3. Enable **Developer mode**.
+4. Select **Load unpacked** and choose this repository's root folder.
+5. Click the extension icon to open the side panel.
+
+## Use it
+
+1. Drag one or more supported carrier PDFs into the panel.
+2. Check the detected bills and the aggregated totals.
+3. For each person, choose Venmo or PayPal and save the handle locally if you want to reuse it.
+4. Select **Request** to open a pre-filled request at the chosen provider.
+
+## Repository map
+
+```text
+manifest.json       Chrome Manifest V3 configuration
+background.js       Toolbar action → side panel
+popup.html          Side-panel markup
+popup.css           Side-panel styling
+popup.js            Intake, aggregation, local mappings, and UI rendering
+parser.js           Google Fi and T-Mobile PDF parsers
+lib/                Bundled pdf.js runtime and worker
+icons/              Extension icon assets
 ```
+
+## Current boundaries
+
+- Supported carriers are limited to Google Fi and T-Mobile.
+- Parsing depends on recognizable statement text and is not a substitute for reviewing the final breakdown.
+- Payment requests require a person-to-handle mapping supplied by the user.
+- The extension is loaded unpacked; it is not distributed through the Chrome Web Store.
+
+## Screenshots
+
+The repository currently has no product screenshots. Contributions that add anonymized screenshots are welcome; please do not include real names, phone numbers, account details, or statement data.
